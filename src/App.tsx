@@ -10,12 +10,14 @@ import { CustomerList } from './components/CustomerList';
 import { CustomerForm } from './components/CustomerForm';
 import { CustomerProfile } from './components/CustomerProfile';
 import { SyncContacts } from './components/SyncContacts';
+import { Settings } from './components/Settings';
+import { LoginForm } from './components/LoginForm';
 import { Customer } from './types';
-import { Scissors, LogIn } from 'lucide-react';
+import { Scissors } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 function AppContent() {
-  const { user, login, loading } = useAuth();
+  const { user, loading } = useAuth();
   const [activeTab, setActiveTab] = useState('home');
   const [view, setView] = useState<{ type: 'list' | 'profile' | 'form', customer?: Customer }>({ type: 'list' });
 
@@ -29,7 +31,7 @@ function AppContent() {
 
   if (!user) {
     return (
-      <div className="max-w-md w-full mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <div className="max-w-md w-full mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pt-12 pb-24">
         <div className="text-center px-6">
           <div className="w-20 h-20 bg-blue-600 text-white rounded-[2.5rem] flex items-center justify-center mx-auto mb-8 shadow-2xl shadow-blue-500/40 rotate-12">
             <Scissors size={40} />
@@ -41,15 +43,8 @@ function AppContent() {
         </div>
 
         <div className="bg-white p-8 rounded-[3rem] shadow-xl border border-gray-100 mx-4">
-          <h2 className="text-xl font-bold text-gray-900 text-center mb-6">Welcome Back</h2>
-          <button
-            onClick={login}
-            className="w-full bg-blue-600 text-white py-4 px-6 rounded-2xl font-bold flex items-center justify-center space-x-3 active:scale-[0.98] transition-all shadow-lg shadow-blue-500/25"
-          >
-            <LogIn size={20} />
-            <span>Sign in with Google</span>
-          </button>
-          <p className="text-[10px] text-gray-400 text-center mt-6 px-8 leading-normal uppercase tracking-widest font-bold">
+          <LoginForm />
+          <p className="text-[10px] text-gray-400 text-center mt-8 px-8 leading-normal uppercase tracking-widest font-bold">
             Secure processing by Firebase
           </p>
         </div>
@@ -60,14 +55,7 @@ function AppContent() {
   const renderContent = () => {
     // If not in home or customers tab, override based on activeTab
     if (activeTab === 'sync') return <SyncContacts />;
-    if (activeTab === 'settings') {
-      return (
-        <div className="bg-white p-8 rounded-3xl text-center space-y-4">
-           <h2 className="text-xl font-bold">Settings</h2>
-           <p className="text-gray-400 italic">Coming soon: Cloud backup sync and custom measurement fields.</p>
-        </div>
-      );
-    }
+    if (activeTab === 'settings') return <Settings />;
 
     // Default Home/Customers logic
     switch (view.type) {

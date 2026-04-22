@@ -27,6 +27,20 @@ service cloud.firestore {
       return resource.data;
     }
 
+    // User Settings Validation
+    function isValidUser(data) {
+      return data.keys().hasAll(['storageProvider'])
+        && (data.storageProvider == 'firebase' || data.storageProvider == 'googledrive')
+        && (!('googleAccessToken' in data) || (data.googleAccessToken is string && data.googleAccessToken.size() <= 2048))
+        && (!('googleDriveFolderLink' in data) || (data.googleDriveFolderLink is string && data.googleDriveFolderLink.size() <= 1024))
+        && (!('googleDriveFolderId' in data) || (data.googleDriveFolderId is string && data.googleDriveFolderId.size() <= 128));
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn() && isOwner(userId);
+      allow write: if isSignedIn() && isOwner(userId) && isValidUser(incoming());
+    }
+
     // Customer Validation
     function isValidCustomer(data) {
       return data.keys().hasAll(['ownerId', 'name'])
@@ -67,7 +81,9 @@ service cloud.firestore {
         function isValidImage(data) {
           return data.keys().hasAll(['customerId', 'url'])
             && data.customerId == customerId
-            && data.url is string && data.url.size() <= 2048;
+            && data.url is string && data.url.size() <= 2048
+            && (!('storagePath' in data) || (data.storagePath == null || (data.storagePath is string && data.storagePath.size() <= 1024)))
+            && (!('googleFileId' in data) || (data.googleFileId == null || (data.googleFileId is string && data.googleFileId.size() <= 128)));
         }
 
         allow read: if isSignedIn() && get(/databases/$(database)/documents/customers/$(customerId)).data.ownerId == request.auth.uid;

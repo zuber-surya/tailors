@@ -1,5 +1,15 @@
 {
   "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and settings.",
+      "type": "object",
+      "properties": {
+        "storageProvider": { "type": "string", "enum": ["firebase", "googledrive"] },
+        "googleAccessToken": { "type": "string" }
+      },
+      "required": ["storageProvider"]
+    },
     "Customer": {
       "title": "Customer",
       "description": "A client of the tailor or designer.",

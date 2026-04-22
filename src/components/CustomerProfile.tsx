@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, addDoc, updateDoc, serverTimestamp, deleteDoc, doc, getDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage, handleFirestoreError } from '../lib/firebase';
+import { useAuth } from '../lib/AuthContext';
+import { googleDriveService } from '../services/googleDriveService';
 import { Customer, Measurement, CustomerImage, MeasurementValues } from '../types';
 import { cn, formatDate } from '../lib/utils';
 import { 
   ArrowLeft, Edit2, Plus, Calendar, Ruler, 
-  Image as ImageIcon, Trash2, Camera, Upload, Send, Scissors
+  Image as ImageIcon, Trash2, Camera, Upload, Send, Scissors,
+  Loader2, LogIn, AlertCircle, X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -32,11 +35,28 @@ const MEASUREMENT_LABELS: Record<string, string> = {
 };
 
 export function CustomerProfile({ customer, onBack, onEdit }: CustomerProfileProps) {
+  const { user, googleAccessToken, connectDrive } = useAuth();
   const [activeTab, setActiveTab] = useState<'measurements' | 'gallery'>('measurements');
   const [measurements, setMeasurements] = useState<Measurement[]>([]);
   const [images, setImages] = useState<CustomerImage[]>([]);
   const [editingMeasurement, setEditingMeasurement] = useState<Measurement | null>(null);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [storageProvider, setStorageProvider] = useState<'firebase' | 'googledrive'>('firebase');
+  const [googleFolderId, setGoogleFolderId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    const fetchSettings = async () => {
+      const docSnap = await getDoc(doc(db, 'users', user.uid));
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setStorageProvider(data.storageProvider || 'firebase');
+        setGoogleFolderId(data.googleDriveFolderId || null);
+      }
+    };
+    fetchSettings();
+  }, [user]);
 
   useEffect(() => {
     const mq = query(
@@ -64,19 +84,38 @@ export function CustomerProfile({ customer, onBack, onEdit }: CustomerProfilePro
 
     setUploading(true);
     try {
-      const storagePath = `customers/${customer.id}/${Date.now()}-${file.name}`;
-      const storageRef = ref(storage, storagePath);
-      await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(storageRef);
+      let url = '';
+      let storagePath = '';
+      let googleFileId = '';
+
+      if (storageProvider === 'googledrive') {
+        if (!googleAccessToken) {
+          throw new Error("Google Drive is not connected. Please go to Settings and click 'Connect Google Drive'.");
+        }
+        if (!googleFolderId) {
+          throw new Error("No Google Drive folder link found. Please go to Settings and paste a folder link.");
+        }
+
+        const driveResponse = await googleDriveService.uploadFile(file, googleFolderId, googleAccessToken);
+        url = driveResponse.webViewLink;
+        googleFileId = driveResponse.id;
+      } else {
+        storagePath = `customers/${customer.id}/${Date.now()}-${file.name}`;
+        const storageRef = ref(storage, storagePath);
+        await uploadBytes(storageRef, file);
+        url = await getDownloadURL(storageRef);
+      }
 
       await addDoc(collection(db, 'customers', customer.id, 'images'), {
         customerId: customer.id,
         url,
-        storagePath,
+        storagePath: storagePath || null,
+        googleFileId: googleFileId || null,
         createdAt: serverTimestamp(),
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Image upload failed', error);
+      alert(error.message || 'Image upload failed');
     } finally {
       setUploading(false);
     }
@@ -227,12 +266,33 @@ export function CustomerProfile({ customer, onBack, onEdit }: CustomerProfilePro
             <div className="flex items-center justify-between mb-2">
               <h3 className="font-bold text-gray-900">Gallery</h3>
               <div className="flex space-x-2">
-                <label className="bg-blue-600 text-white p-2 rounded-lg cursor-pointer active:scale-95 transition-transform">
-                  <Upload size={18} />
+                {storageProvider === 'googledrive' && !googleAccessToken && (
+                  <button
+                    onClick={connectDrive}
+                    className="flex items-center space-x-2 bg-amber-100 text-amber-700 px-3 py-2 rounded-lg text-xs font-bold active:scale-95 transition-all"
+                  >
+                    <LogIn size={14} />
+                    <span>Connect Drive</span>
+                  </button>
+                )}
+                <label className={cn(
+                  "bg-blue-600 text-white p-2 rounded-lg cursor-pointer active:scale-95 transition-transform",
+                  uploading && "opacity-50 pointer-events-none"
+                )}>
+                  {uploading ? <Loader2 size={18} className="animate-spin" /> : <Upload size={18} />}
                   <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
                 </label>
               </div>
             </div>
+
+            {storageProvider === 'googledrive' && !googleAccessToken && (
+              <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl flex items-start space-x-2 text-amber-800 text-[10px] leading-snug">
+                <AlertCircle className="shrink-0 mt-0.5" size={14} />
+                <p>
+                  Drive session expired. Click <strong>Connect Drive</strong> to enable uploads.
+                </p>
+              </div>
+            )}
 
             {uploading && (
               <div className="bg-blue-50 p-4 rounded-xl text-blue-600 text-center font-bold text-sm animate-pulse">
@@ -247,22 +307,60 @@ export function CustomerProfile({ customer, onBack, onEdit }: CustomerProfilePro
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3">
-                {images.map((img) => (
-                  <div key={img.id} className="relative aspect-square rounded-2xl overflow-hidden group shadow-sm bg-gray-100">
-                    <img src={img.url} alt="Customer" className="w-full h-full object-cover" />
-                    <button 
-                      onClick={() => deleteImage(img)}
-                      className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                ))}
+                {images.map((img) => {
+                  const displayUrl = img.googleFileId ? `https://lh3.googleusercontent.com/d/${img.googleFileId}` : img.url;
+                  return (
+                    <div key={img.id} className="relative aspect-square rounded-2xl overflow-hidden group shadow-sm bg-gray-100">
+                      <img 
+                        src={displayUrl} 
+                        alt="Customer" 
+                        className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform duration-300" 
+                        referrerPolicy="no-referrer"
+                        onClick={() => setSelectedImage(displayUrl)}
+                      />
+                      <button 
+                        onClick={() => deleteImage(img)}
+                        className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
         )}
       </div>
+
+      <AnimatePresence>
+        {selectedImage && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm"
+            onClick={() => setSelectedImage(null)}
+          >
+            <button 
+              className="absolute top-6 right-6 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors"
+              onClick={() => setSelectedImage(null)}
+            >
+              <X size={24} />
+            </button>
+            <motion.img 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              src={selectedImage} 
+              alt="Full Size" 
+              className="max-w-full max-h-[90vh] rounded-2xl shadow-2xl object-contain"
+              referrerPolicy="no-referrer"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

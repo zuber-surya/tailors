@@ -1,18 +1,26 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
+import { 
+  User, onAuthStateChanged, signInWithPopup, signOut, GoogleAuthProvider, 
+  signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile 
+} from 'firebase/auth';
 import { auth, googleProvider } from './firebase';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  googleAccessToken: string | null;
   login: () => Promise<void>;
+  loginWithEmail: (email: string, password: string) => Promise<void>;
+  registerWithEmail: (email: string, password: string, name: string) => Promise<void>;
   logout: () => Promise<void>;
+  connectDrive: () => Promise<string | null>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(localStorage.getItem('google_drive_token'));
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -26,12 +34,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await signInWithPopup(auth, googleProvider);
   };
 
+  const loginWithEmail = async (email: string, password: string) => {
+    await signInWithEmailAndPassword(auth, email, password);
+  };
+
+  const registerWithEmail = async (email: string, password: string, name: string) => {
+    const { user } = await createUserWithEmailAndPassword(auth, email, password);
+    await updateProfile(user, { displayName: name });
+  };
+
+  const connectDrive = async () => {
+    const driveProvider = new GoogleAuthProvider();
+    driveProvider.addScope('https://www.googleapis.com/auth/drive.file');
+    
+    try {
+      const result = await signInWithPopup(auth, driveProvider);
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      const token = credential?.accessToken || null;
+      
+      if (token) {
+        setGoogleAccessToken(token);
+        localStorage.setItem('google_drive_token', token);
+      }
+      return token;
+    } catch (error) {
+      console.error('Error connecting Google Drive:', error);
+      return null;
+    }
+  };
+
   const logout = async () => {
     await signOut(auth);
+    setGoogleAccessToken(null);
+    localStorage.removeItem('google_drive_token');
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, googleAccessToken, login, loginWithEmail, registerWithEmail, logout, connectDrive }}>
       {children}
     </AuthContext.Provider>
   );

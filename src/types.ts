@@ -1,5 +1,12 @@
 import { Timestamp } from 'firebase/firestore';
 
+export interface UserSettings {
+  storageProvider: 'firebase' | 'googledrive';
+  googleDriveFolderLink?: string;
+  googleDriveFolderId?: string;
+  googleAccessToken?: string;
+}
+
 export interface Customer {
   id: string;
   ownerId: string;
@@ -37,6 +44,7 @@ export interface CustomerImage {
   customerId: string;
   url: string;
   storagePath?: string;
+  googleFileId?: string;
   caption?: string;
   createdAt: Timestamp;
 }
