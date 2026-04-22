@@ -1,0 +1,6 @@
+{
+  "name": "TailorMate - Customer & Measurement Manager",
+  "description": "A professional mobile-first CRM for tailors and designers. Manage customers, track detailed measurements with history, and store client photos securely.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": []
+}

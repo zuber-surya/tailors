@@ -1,0 +1,82 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+    
+    function existing() {
+      return resource.data;
+    }
+
+    // Customer Validation
+    function isValidCustomer(data) {
+      return data.keys().hasAll(['ownerId', 'name'])
+        && data.ownerId == request.auth.uid
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && (!('customerNo' in data) || (data.customerNo is string && data.customerNo.size() <= 50))
+        && (!('phone' in data) || (data.phone is string && data.phone.size() <= 30))
+        && (!('email' in data) || (data.email is string && data.email.size() <= 100))
+        && (!('address' in data) || (data.address is string && data.address.size() <= 500));
+    }
+
+    match /customers/{customerId} {
+      allow read: if isSignedIn() && isOwner(existing().ownerId);
+      allow create: if isSignedIn() && isValidCustomer(incoming());
+      allow update: if isSignedIn() && isOwner(existing().ownerId) && isValidCustomer(incoming())
+        && incoming().ownerId == existing().ownerId;
+      allow delete: if isSignedIn() && isOwner(existing().ownerId);
+
+      // Measurements Sub-collection
+      match /measurements/{measurementId} {
+        function isValidMeasurement(data) {
+          return data.keys().hasAll(['customerId', 'date'])
+            && data.customerId == customerId
+            && data.date is timestamp
+            && (!('notes' in data) || (data.notes is string && data.notes.size() <= 2000));
+        }
+
+        allow read: if isSignedIn() && get(/databases/$(database)/documents/customers/$(customerId)).data.ownerId == request.auth.uid;
+        allow create: if isSignedIn() && get(/databases/$(database)/documents/customers/$(customerId)).data.ownerId == request.auth.uid
+          && isValidMeasurement(incoming());
+        allow update: if isSignedIn() && get(/databases/$(database)/documents/customers/$(customerId)).data.ownerId == request.auth.uid
+          && isValidMeasurement(incoming());
+        allow delete: if isSignedIn() && get(/databases/$(database)/documents/customers/$(customerId)).data.ownerId == request.auth.uid;
+      }
+
+      // Images Sub-collection
+      match /images/{imageId} {
+        function isValidImage(data) {
+          return data.keys().hasAll(['customerId', 'url'])
+            && data.customerId == customerId
+            && data.url is string && data.url.size() <= 2048;
+        }
+
+        allow read: if isSignedIn() && get(/databases/$(database)/documents/customers/$(customerId)).data.ownerId == request.auth.uid;
+        allow create: if isSignedIn() && get(/databases/$(database)/documents/customers/$(customerId)).data.ownerId == request.auth.uid
+          && isValidImage(incoming());
+        allow update: if isSignedIn() && get(/databases/$(database)/documents/customers/$(customerId)).data.ownerId == request.auth.uid
+          && isValidImage(incoming());
+        allow delete: if isSignedIn() && get(/databases/$(database)/documents/customers/$(customerId)).data.ownerId == request.auth.uid;
+      }
+    }
+  }
+}

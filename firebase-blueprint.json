@@ -1,0 +1,72 @@
+{
+  "entities": {
+    "Customer": {
+      "title": "Customer",
+      "description": "A client of the tailor or designer.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "description": "UID of the user who owns this customer record." },
+        "name": { "type": "string", "description": "Full name of the customer." },
+        "customerNo": { "type": "string", "description": "Unique identifier or sequence number for the customer." },
+        "phone": { "type": "string", "description": "Phone number for contact/sync." },
+        "email": { "type": "string", "format": "email" },
+        "address": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "name"]
+    },
+    "Measurement": {
+      "title": "Measurement",
+      "description": "A specific measurement entry for a customer.",
+      "type": "object",
+      "properties": {
+        "customerId": { "type": "string", "description": "ID of the customer this measurement belongs to." },
+        "date": { "type": "string", "format": "date-time" },
+        "notes": { "type": "string" },
+        "values": {
+          "type": "object",
+          "description": "Map of measurement field names to numeric values.",
+          "properties": {
+            "chest": { "type": "number" },
+            "waist": { "type": "number" },
+            "hips": { "type": "number" },
+            "height": { "type": "number" },
+            "neck": { "type": "number" },
+            "shoulders": { "type": "number" },
+            "sleeves": { "type": "number" }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["customerId", "date"]
+    },
+    "Image": {
+      "title": "Customer Image",
+      "description": "An image/photo associated with a customer.",
+      "type": "object",
+      "properties": {
+        "customerId": { "type": "string" },
+        "url": { "type": "string" },
+        "storagePath": { "type": "string" },
+        "caption": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["customerId", "url"]
+    }
+  },
+  "firestore": {
+    "/customers/{customerId}": {
+      "schema": "Customer",
+      "description": "Top-level collection for customers."
+    },
+    "/customers/{customerId}/measurements/{measurementId}": {
+      "schema": "Measurement",
+      "description": "Sub-collection for measurement history."
+    },
+    "/customers/{customerId}/images/{imageId}": {
+      "schema": "Image",
+      "description": "Sub-collection for client photo gallery."
+    }
+  }
+}
