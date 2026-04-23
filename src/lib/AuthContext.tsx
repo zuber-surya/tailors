@@ -46,8 +46,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const connectDrive = async () => {
     const driveProvider = new GoogleAuthProvider();
     driveProvider.addScope('https://www.googleapis.com/auth/drive.file');
+    // Ensure account selection and consent screen appear
+    driveProvider.setCustomParameters({ 
+      prompt: 'select_account',
+      access_type: 'offline'
+    });
     
     try {
+      console.log('Opening Drive connection popup...');
       const result = await signInWithPopup(auth, driveProvider);
       const credential = GoogleAuthProvider.credentialFromResult(result);
       const token = credential?.accessToken || null;
@@ -55,10 +61,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (token) {
         setGoogleAccessToken(token);
         localStorage.setItem('google_drive_token', token);
+        console.log('Drive token acquired successfully');
+      } else {
+        console.warn('Popup closed but no token was returned');
       }
       return token;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error connecting Google Drive:', error);
+      
+      // Provide user-friendly error messages
+      let message = 'Failed to connect to Google Drive.';
+      if (error.code === 'auth/popup-blocked') {
+        message = 'The popup was blocked by your browser. Please allow popups for this site and try again.';
+      } else if (error.code === 'auth/popup-closed-by-user') {
+        message = 'The connection window was closed before it could complete.';
+      } else if (error.code === 'auth/cancelled-popup-request') {
+        message = 'Only one connection request can be handled at a time.';
+      } else if (error.message) {
+        message += `\nError: ${error.message}`;
+      }
+      
+      alert(message);
       return null;
     }
   };

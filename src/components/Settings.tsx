@@ -14,6 +14,7 @@ export function Settings() {
   const [folderInput, setFolderInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [connecting, setConnecting] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -36,9 +37,16 @@ export function Settings() {
   }, [user]);
 
   const handleConnect = async () => {
-    const token = await connectDrive();
-    if (token) {
-      alert("Google Drive connected successfully!");
+    setConnecting(true);
+    try {
+      const token = await connectDrive();
+      if (token) {
+        alert("Google Drive connected successfully!");
+      }
+    } catch (err) {
+      console.error('Connect failed:', err);
+    } finally {
+      setConnecting(false);
     }
   };
 
@@ -196,7 +204,7 @@ export function Settings() {
                 </label>
                 <button 
                   onClick={handleConnect}
-                  disabled={saving}
+                  disabled={saving || connecting}
                   className={cn(
                     "w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center space-x-2 transition-all",
                     googleAccessToken 
@@ -204,8 +212,14 @@ export function Settings() {
                       : "bg-white border border-blue-200 text-blue-700 active:scale-95 shadow-sm"
                   )}
                 >
-                  {googleAccessToken ? <Check size={16} /> : <LogIn size={16} />}
-                  <span>{googleAccessToken ? "Drive Connected" : "Connect Google Drive"}</span>
+                  {connecting ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    googleAccessToken ? <Check size={16} /> : <LogIn size={16} />
+                  )}
+                  <span>
+                    {connecting ? "Connecting..." : (googleAccessToken ? "Drive Connected" : "Connect Google Drive")}
+                  </span>
                 </button>
               </div>
 

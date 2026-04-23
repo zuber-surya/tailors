@@ -18,17 +18,25 @@ export const googleDriveService = {
     folderId: string,
     accessToken: string
   ): Promise<GoogleDriveUploadResponse> {
+    const boundary = '-------tailormate_boundary';
+    const delimiter = `\r\n--${boundary}\r\n`;
+    const closeDelimiter = `\r\n--${boundary}--`;
+
     const metadata = {
       name: file.name,
       parents: [folderId],
+      mimeType: file.type
     };
 
-    const formData = new FormData();
-    formData.append(
-      'metadata',
-      new Blob([JSON.stringify(metadata)], { type: 'application/json' })
-    );
-    formData.append('file', file);
+    const multipartRequestBody = new Blob([
+      delimiter,
+      'Content-Type: application/json; charset=UTF-8\r\n\r\n',
+      JSON.stringify(metadata),
+      delimiter,
+      `Content-Type: ${file.type}\r\n\r\n`,
+      file,
+      closeDelimiter
+    ], { type: `multipart/related; boundary=${boundary}` });
 
     const response = await fetch(
       'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink,thumbnailLink',
@@ -37,7 +45,7 @@ export const googleDriveService = {
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
-        body: formData,
+        body: multipartRequestBody,
       }
     );
 

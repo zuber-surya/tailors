@@ -12,6 +12,7 @@ import { CustomerProfile } from './components/CustomerProfile';
 import { SyncContacts } from './components/SyncContacts';
 import { Settings } from './components/Settings';
 import { LoginForm } from './components/LoginForm';
+import { Dashboard } from './components/Dashboard';
 import { Customer } from './types';
 import { Scissors } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -53,44 +54,67 @@ function AppContent() {
   }
 
   const renderContent = () => {
-    // If not in home or customers tab, override based on activeTab
+    // Tab-based overrides
+    if (activeTab === 'home') {
+      return (
+        <Dashboard 
+          onAddCustomer={() => {
+            setActiveTab('customers');
+            setView({ type: 'form' });
+          }}
+          onViewCustomers={() => {
+            setActiveTab('customers');
+            setView({ type: 'list' });
+          }}
+          onSelectCustomer={(c) => {
+            setActiveTab('customers');
+            setView({ type: 'profile', customer: c });
+          }}
+        />
+      );
+    }
+    
     if (activeTab === 'sync') return <SyncContacts />;
     if (activeTab === 'settings') return <Settings />;
 
-    // Default Home/Customers logic
-    switch (view.type) {
-      case 'list':
-        return (
-          <CustomerList 
-            onSelect={(c) => setView({ type: 'profile', customer: c })} 
-            onAdd={() => setView({ type: 'form' })}
-          />
-        );
-      case 'profile':
-        return view.customer ? (
-          <CustomerProfile 
-            customer={view.customer} 
-            onBack={() => setView({ type: 'list' })}
-            onEdit={() => setView({ type: 'form', customer: view.customer })}
-          />
-        ) : null;
-      case 'form':
-        return (
-          <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
-            <motion.div
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              className="w-full max-w-lg"
-            >
-              <CustomerForm 
-                customer={view.customer} 
-                onClose={() => setView({ type: 'list' })} 
-              />
-            </motion.div>
-          </div>
-        );
+    // Customers Tab Logic
+    if (activeTab === 'customers') {
+      switch (view.type) {
+        case 'list':
+          return (
+            <CustomerList 
+              onSelect={(c) => setView({ type: 'profile', customer: c })} 
+              onAdd={() => setView({ type: 'form' })}
+            />
+          );
+        case 'profile':
+          return view.customer ? (
+            <CustomerProfile 
+              customer={view.customer} 
+              onBack={() => setView({ type: 'list' })}
+              onEdit={() => setView({ type: 'form', customer: view.customer })}
+            />
+          ) : null;
+        case 'form':
+          return (
+            <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
+              <motion.div
+                initial={{ y: '100%' }}
+                animate={{ y: 0 }}
+                exit={{ y: '100%' }}
+                className="w-full max-w-lg"
+              >
+                <CustomerForm 
+                  customer={view.customer} 
+                  onClose={() => setView({ type: 'list' })} 
+                />
+              </motion.div>
+            </div>
+          );
+      }
     }
+
+    return null;
   };
 
   return (

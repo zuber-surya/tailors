@@ -9,7 +9,8 @@ import { cn, formatDate } from '../lib/utils';
 import { 
   ArrowLeft, Edit2, Plus, Calendar, Ruler, 
   Image as ImageIcon, Trash2, Camera, Upload, Send, Scissors,
-  Loader2, LogIn, AlertCircle, X
+  Loader2, LogIn, AlertCircle, X, Phone, Mail,
+  ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -40,22 +41,22 @@ export function CustomerProfile({ customer, onBack, onEdit }: CustomerProfilePro
   const [measurements, setMeasurements] = useState<Measurement[]>([]);
   const [images, setImages] = useState<CustomerImage[]>([]);
   const [editingMeasurement, setEditingMeasurement] = useState<Measurement | null>(null);
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [connecting, setConnecting] = useState(false);
   const [storageProvider, setStorageProvider] = useState<'firebase' | 'googledrive'>('firebase');
   const [googleFolderId, setGoogleFolderId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
-    const fetchSettings = async () => {
-      const docSnap = await getDoc(doc(db, 'users', user.uid));
+    const unsub = onSnapshot(doc(db, 'users', user.uid), (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         setStorageProvider(data.storageProvider || 'firebase');
         setGoogleFolderId(data.googleDriveFolderId || null);
       }
-    };
-    fetchSettings();
+    });
+    return () => unsub();
   }, [user]);
 
   useEffect(() => {
@@ -115,7 +116,15 @@ export function CustomerProfile({ customer, onBack, onEdit }: CustomerProfilePro
       });
     } catch (error: any) {
       console.error('Image upload failed', error);
-      alert(error.message || 'Image upload failed');
+      let message = error.message || 'Image upload failed';
+      
+      if (message.toLowerCase().includes('invalid credentials') || message.toLowerCase().includes('unauthorized') || message.toLowerCase().includes('expired')) {
+        message = "Your Google Drive session has expired. Please click 'Connect Drive' to resume uploading.";
+      } else if (message.toLowerCase().includes('quota')) {
+        message = "Google Drive storage quota exceeded. Please check your storage space.";
+      }
+      
+      alert(message);
     } finally {
       setUploading(false);
     }
@@ -127,6 +136,17 @@ export function CustomerProfile({ customer, onBack, onEdit }: CustomerProfilePro
       await deleteDoc(doc(db, 'customers', customer.id, 'measurements', id));
     } catch (error) {
       console.error('Failed to delete measurement', error);
+    }
+  };
+
+  const handleConnectDrive = async () => {
+    setConnecting(true);
+    try {
+      await connectDrive();
+    } catch (err) {
+      console.error('Connect failed:', err);
+    } finally {
+      setConnecting(false);
     }
   };
 
@@ -149,33 +169,38 @@ export function CustomerProfile({ customer, onBack, onEdit }: CustomerProfilePro
         </button>
       </div>
 
-      <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 text-center">
-        <div className="w-20 h-20 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-600 font-bold text-3xl mx-auto mb-4">
+      <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 flex items-center space-x-5">
+        <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-600 font-bold text-2xl shrink-0">
           {customer.name.charAt(0)}
         </div>
-        <div className="space-y-1">
-          <h2 className="text-2xl font-black text-gray-900 tracking-tight">{customer.name}</h2>
-          {customer.customerNo && (
-            <span className="inline-block px-2 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-black rounded uppercase tracking-wider">
-              ID No. {customer.customerNo}
-            </span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center space-x-2">
+            <h2 className="text-xl font-black text-gray-900 truncate tracking-tight">{customer.name}</h2>
+            {customer.customerNo && (
+              <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-black rounded uppercase tracking-wider whitespace-nowrap">
+                #{customer.customerNo}
+              </span>
+            )}
+          </div>
+          <div className="mt-3 space-y-2">
+            {customer.phone && (
+              <a 
+                href={`tel:${customer.phone}`} 
+                className="flex items-center justify-center w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm font-bold text-gray-700 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-100 transition-all active:scale-[0.98]"
+              >
+                <Phone size={14} className="mr-2" /> {customer.phone}
+              </a>
+            )}
+            {customer.email && (
+              <span className="flex items-center text-[10px] text-gray-400 font-medium italic truncate pl-1">
+                <Mail size={10} className="mr-1" /> {customer.email}
+              </span>
+            )}
+          </div>
+          {customer.address && (
+            <p className="text-[10px] text-gray-400 mt-1 line-clamp-1 italic pl-1">{customer.address}</p>
           )}
         </div>
-        <div className="flex flex-wrap justify-center gap-2 mt-4">
-          {customer.phone && (
-            <a href={`tel:${customer.phone}`} className="bg-gray-100 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 border border-gray-200">
-              {customer.phone}
-            </a>
-          )}
-          {customer.email && (
-            <span className="bg-gray-100 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 border border-gray-200 italic">
-              {customer.email}
-            </span>
-          )}
-        </div>
-        {customer.address && (
-          <p className="mt-4 text-sm text-gray-400 leading-relaxed italic">{customer.address}</p>
-        )}
       </div>
 
       <div className="flex p-1 bg-gray-100 rounded-2xl">
@@ -268,11 +293,12 @@ export function CustomerProfile({ customer, onBack, onEdit }: CustomerProfilePro
               <div className="flex space-x-2">
                 {storageProvider === 'googledrive' && !googleAccessToken && (
                   <button
-                    onClick={connectDrive}
+                    onClick={handleConnectDrive}
+                    disabled={connecting}
                     className="flex items-center space-x-2 bg-amber-100 text-amber-700 px-3 py-2 rounded-lg text-xs font-bold active:scale-95 transition-all"
                   >
-                    <LogIn size={14} />
-                    <span>Connect Drive</span>
+                    {connecting ? <Loader2 size={14} className="animate-spin" /> : <LogIn size={14} />}
+                    <span>{connecting ? "Connecting..." : "Connect Drive"}</span>
                   </button>
                 )}
                 <label className={cn(
@@ -306,17 +332,17 @@ export function CustomerProfile({ customer, onBack, onEdit }: CustomerProfilePro
                 No photos uploaded yet
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-3">
-                {images.map((img) => {
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                {images.map((img, idx) => {
                   const displayUrl = img.googleFileId ? `https://lh3.googleusercontent.com/d/${img.googleFileId}` : img.url;
                   return (
-                    <div key={img.id} className="relative aspect-square rounded-2xl overflow-hidden group shadow-sm bg-gray-100">
+                    <div key={img.id} className="relative aspect-square rounded-xl overflow-hidden group shadow-sm bg-gray-100">
                       <img 
                         src={displayUrl} 
                         alt="Customer" 
                         className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform duration-300" 
                         referrerPolicy="no-referrer"
-                        onClick={() => setSelectedImage(displayUrl)}
+                        onClick={() => setSelectedIndex(idx)}
                       />
                       <button 
                         onClick={() => deleteImage(img)}
@@ -334,30 +360,66 @@ export function CustomerProfile({ customer, onBack, onEdit }: CustomerProfilePro
       </div>
 
       <AnimatePresence>
-        {selectedImage && (
+        {selectedIndex !== null && images[selectedIndex] && (
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm"
-            onClick={() => setSelectedImage(null)}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-md overflow-hidden"
+            onClick={() => setSelectedIndex(null)}
           >
+            {/* Close Button */}
             <button 
-              className="absolute top-6 right-6 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors"
-              onClick={() => setSelectedImage(null)}
+              className="absolute top-6 right-6 z-[60] p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all"
+              onClick={() => setSelectedIndex(null)}
             >
               <X size={24} />
             </button>
-            <motion.img 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              src={selectedImage} 
-              alt="Full Size" 
-              className="max-w-full max-h-[90vh] rounded-2xl shadow-2xl object-contain"
-              referrerPolicy="no-referrer"
-              onClick={(e) => e.stopPropagation()}
-            />
+
+            {/* Navigation Arrows */}
+            <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-between px-4 sm:px-8 z-[60] pointer-events-none">
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedIndex(prev => prev !== null ? (prev - 1 + images.length) % images.length : null);
+                }}
+                className="p-4 bg-white/5 hover:bg-white/10 text-white rounded-full backdrop-blur-md transition-all active:scale-95 pointer-events-auto"
+              >
+                <ChevronLeft size={32} />
+              </button>
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedIndex(prev => prev !== null ? (prev + 1) % images.length : null);
+                }}
+                className="p-4 bg-white/5 hover:bg-white/10 text-white rounded-full backdrop-blur-md transition-all active:scale-95 pointer-events-auto"
+              >
+                <ChevronRight size={32} />
+              </button>
+            </div>
+
+            {/* Image Slider */}
+            <div className="relative w-full h-full flex items-center justify-center p-4">
+              <AnimatePresence mode="wait">
+                <motion.img 
+                  key={selectedIndex}
+                  initial={{ x: 300, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  exit={{ x: -300, opacity: 0 }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                  src={images[selectedIndex].googleFileId ? `https://lh3.googleusercontent.com/d/${images[selectedIndex].googleFileId}` : images[selectedIndex].url} 
+                  alt="Full Size" 
+                  className="max-w-full max-h-full rounded-lg shadow-2xl object-contain"
+                  referrerPolicy="no-referrer"
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </AnimatePresence>
+            </div>
+
+            {/* Image Counter */}
+            <div className="absolute bottom-10 left-1/2 -translate-x-1/2 px-4 py-2 bg-white/10 text-white text-sm font-bold rounded-full backdrop-blur-md z-[60]">
+              {selectedIndex + 1} / {images.length}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
