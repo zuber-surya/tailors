@@ -77,6 +77,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         message = 'The connection window was closed before it could complete.';
       } else if (error.code === 'auth/cancelled-popup-request') {
         message = 'Only one connection request can be handled at a time.';
+      } else if (error.code === 'auth/unauthorized-domain') {
+        message = 'This domain is not authorized in your Firebase project. Please add the current URL to "Authorized domains" in your Firebase Auth settings.';
       } else if (error.message) {
         message += `\nError: ${error.message}`;
       }
