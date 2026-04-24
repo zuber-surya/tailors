@@ -108,18 +108,18 @@ export function Dashboard({ onAddCustomer, onViewCustomers, onSelectCustomer }: 
               <button
                 key={customer.id}
                 onClick={() => onSelectCustomer(customer)}
-                className="w-full bg-white p-4 rounded-3xl border border-gray-100 shadow-sm flex items-center justify-between group active:scale-[0.98] transition-all"
+                className="w-full bg-white p-3 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between group active:scale-[0.98] transition-all"
               >
-                <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-3">
                   <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center font-bold">
                     {customer.name.charAt(0)}
                   </div>
                   <div className="text-left">
-                    <p className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors uppercase tracking-tight">{customer.name}</p>
-                    <p className="text-[10px] text-gray-400 font-medium uppercase tracking-widest">Added {formatDate(customer.createdAt)}</p>
+                    <p className="text-sm font-bold text-gray-900 group-hover:text-blue-600 transition-colors uppercase tracking-tight">{customer.name}</p>
+                    <p className="text-[9px] text-gray-400 font-medium uppercase tracking-widest leading-none">Added {formatDate(customer.createdAt)}</p>
                   </div>
                 </div>
-                <ChevronRight size={18} className="text-gray-300 group-hover:text-blue-600 transition-colors" />
+                <ChevronRight size={16} className="text-gray-300 group-hover:text-blue-600 transition-colors" />
               </button>
             ))
           )}

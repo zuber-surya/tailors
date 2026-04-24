@@ -86,27 +86,27 @@ export function CustomerList({ onSelect, onAdd }: CustomerListProps) {
                 exit={{ opacity: 0, scale: 0.95 }}
                 key={customer.id}
                 onClick={() => onSelect(customer)}
-                className="w-full bg-white p-4 rounded-2xl border border-gray-100 flex items-center justify-between shadow-sm active:scale-[0.98] transition-transform"
+                className="w-full bg-white p-3 rounded-2xl border border-gray-100 flex items-center justify-between shadow-sm active:scale-[0.98] transition-transform"
               >
                 <div className="flex items-center text-left">
-                  <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600 font-bold text-lg mr-4">
+                  <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600 font-bold text-base mr-3">
                     {customer.name.charAt(0)}
                   </div>
                   <div>
                     <div className="flex items-center space-x-2">
-                       <h3 className="font-bold text-gray-900">{customer.name}</h3>
+                       <h3 className="font-bold text-gray-900 text-sm">{customer.name}</h3>
                        {customer.customerNo && (
-                         <span className="text-[10px] font-black bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded uppercase">
-                           No. {customer.customerNo}
+                         <span className="text-[8px] font-black bg-gray-100 text-gray-500 px-1 py-0.5 rounded uppercase">
+                           #{customer.customerNo}
                          </span>
                        )}
                     </div>
-                    <p className="text-sm text-gray-500 flex items-center mt-0.5">
-                      <Phone size={12} className="mr-1" /> {customer.phone || 'No phone'}
+                    <p className="text-xs text-gray-400 flex items-center mt-0.5">
+                      <Phone size={10} className="mr-1" /> {customer.phone || 'No phone'}
                     </p>
                   </div>
                 </div>
-                <ChevronRight className="text-gray-300" size={20} />
+                <ChevronRight className="text-gray-300" size={16} />
               </motion.button>
             ))}
           </AnimatePresence>

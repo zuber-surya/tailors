@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, orderBy, onSnapshot, addDoc, updateDoc, serverTimestamp, deleteDoc, doc, getDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage, handleFirestoreError } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 import { googleDriveService } from '../services/googleDriveService';
@@ -79,6 +79,19 @@ export function CustomerProfile({ customer, onBack, onEdit }: CustomerProfilePro
     return () => { unsubM(); unsubI(); };
   }, [customer.id]);
 
+  const deleteCustomer = async () => {
+    if (!window.confirm(`Are you sure you want to delete ${customer.name}? This will remove all their data. This action cannot be undone.`)) return;
+    try {
+      // Note: In production, you'd want to delete subcollections and storage files too.
+      // For now, we delete the main document.
+      await deleteDoc(doc(db, 'customers', customer.id));
+      onBack();
+    } catch (error) {
+      console.error('Failed to delete customer', error);
+      alert('Failed to delete customer. Please try again.');
+    }
+  };
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !customer.id) return;
@@ -152,7 +165,31 @@ export function CustomerProfile({ customer, onBack, onEdit }: CustomerProfilePro
 
   const deleteImage = async (img: CustomerImage) => {
     if (!window.confirm('Delete this photo?')) return;
-    await deleteDoc(doc(db, 'customers', customer.id, 'images', img.id));
+    try {
+      // Delete from Firebase Storage if it exists
+      if (img.storagePath) {
+        try {
+          const storageRef = ref(storage, img.storagePath);
+          await deleteObject(storageRef);
+        } catch (storageErr) {
+          console.warn('Failed to delete from storage, it might already be gone', storageErr);
+        }
+      }
+
+      // Delete from Google Drive if it exists
+      if (img.googleFileId && googleAccessToken) {
+        try {
+          await googleDriveService.deleteFile(img.googleFileId, googleAccessToken);
+        } catch (driveErr) {
+          console.warn('Failed to delete from Google Drive', driveErr);
+        }
+      }
+      
+      await deleteDoc(doc(db, 'customers', customer.id, 'images', img.id));
+    } catch (error) {
+      console.error('Failed to delete image', error);
+      alert('Failed to delete image entry from database.');
+    }
   };
 
   return (
@@ -161,12 +198,21 @@ export function CustomerProfile({ customer, onBack, onEdit }: CustomerProfilePro
         <button onClick={onBack} className="p-2 -ml-2 text-gray-500">
           <ArrowLeft size={24} />
         </button>
-        <button 
-          onClick={onEdit}
-          className="bg-gray-100 text-gray-600 px-4 py-2 rounded-xl text-sm font-bold flex items-center"
-        >
-          <Edit2 size={14} className="mr-2" /> Edit Info
-        </button>
+        <div className="flex items-center space-x-2">
+          <button 
+            onClick={deleteCustomer}
+            className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors"
+            title="Delete Customer"
+          >
+            <Trash2 size={20} />
+          </button>
+          <button 
+            onClick={onEdit}
+            className="bg-gray-100 text-gray-600 px-4 py-2 rounded-xl text-sm font-bold flex items-center"
+          >
+            <Edit2 size={14} className="mr-2" /> Edit Info
+          </button>
+        </div>
       </div>
 
       <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 flex items-center space-x-5">
@@ -301,8 +347,25 @@ export function CustomerProfile({ customer, onBack, onEdit }: CustomerProfilePro
                     <span>{connecting ? "Connecting..." : "Connect Drive"}</span>
                   </button>
                 )}
+                
+                {/* Camera Button */}
                 <label className={cn(
-                  "bg-blue-600 text-white p-2 rounded-lg cursor-pointer active:scale-95 transition-transform",
+                  "bg-green-600 text-white p-2 rounded-lg cursor-pointer active:scale-95 transition-transform flex items-center justify-center",
+                  uploading && "opacity-50 pointer-events-none"
+                )}>
+                  {uploading ? <Loader2 size={18} className="animate-spin" /> : <Camera size={18} />}
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    capture="environment" 
+                    className="hidden" 
+                    onChange={handleImageUpload} 
+                  />
+                </label>
+
+                {/* Upload Button */}
+                <label className={cn(
+                  "bg-blue-600 text-white p-2 rounded-lg cursor-pointer active:scale-95 transition-transform flex items-center justify-center",
                   uploading && "opacity-50 pointer-events-none"
                 )}>
                   {uploading ? <Loader2 size={18} className="animate-spin" /> : <Upload size={18} />}
@@ -345,10 +408,13 @@ export function CustomerProfile({ customer, onBack, onEdit }: CustomerProfilePro
                         onClick={() => setSelectedIndex(idx)}
                       />
                       <button 
-                        onClick={() => deleteImage(img)}
-                        className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteImage(img);
+                        }}
+                        className="absolute top-1 right-1 p-1 bg-black/40 text-white rounded-md transition-all active:scale-90 z-10"
                       >
-                        <Trash2 size={14} />
+                        <Trash2 size={12} />
                       </button>
                     </div>
                   );

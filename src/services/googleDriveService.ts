@@ -58,6 +58,26 @@ export const googleDriveService = {
   },
 
   /**
+   * Deletes a file from Google Drive
+   */
+  async deleteFile(fileId: string, accessToken: string): Promise<void> {
+    const response = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${fileId}`,
+      {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
+
+    if (!response.ok && response.status !== 404) {
+      const error = await response.json();
+      throw new Error(error.error?.message || 'Failed to delete file from Google Drive');
+    }
+  },
+
+  /**
    * Gets a direct download link (or webViewLink) for a file
    */
   async getFileLink(fileId: string, accessToken: string): Promise<{ webViewLink: string; thumbnailLink: string }> {
